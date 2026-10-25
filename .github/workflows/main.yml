@@ -1,0 +1,53 @@
+name: Build NOVA Taktwerk
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  build:
+    name: ${{ matrix.name }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: macOS
+            os: macos-latest
+          - name: Windows
+            os: windows-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configure
+        run: cmake -S . -B build -DCMAKE_BUILD_TYPE=Release
+
+      - name: Build
+        run: cmake --build build --config Release --parallel 4
+
+      - name: Package (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          ART="build/NovaTaktwerk_artefacts/Release"
+          mkdir -p dist
+          cp -R "$ART/VST3/NOVA Taktwerk.vst3" dist/
+          cp -R "$ART/AU/NOVA Taktwerk.component" dist/
+          cp -R "$ART/Standalone/NOVA Taktwerk.app" dist/
+          for bundle in dist/*; do codesign --force --deep --sign - "$bundle"; done
+          lipo -info "dist/NOVA Taktwerk.vst3/Contents/MacOS/NOVA Taktwerk"
+
+      - name: Package (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          ART="build/NovaTaktwerk_artefacts/Release"
+          mkdir -p dist
+          cp -R "$ART/VST3/NOVA Taktwerk.vst3" dist/
+          cp "$ART/Standalone/NOVA Taktwerk.exe" dist/
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: NOVA-Taktwerk-${{ matrix.name }}
+          path: dist
